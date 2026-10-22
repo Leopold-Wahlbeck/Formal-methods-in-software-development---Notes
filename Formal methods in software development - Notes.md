@@ -182,3 +182,28 @@ Two things to notice:
     → Every violation has a **finite bad prefix** that can never be repaired later.
 - **Liveness** = “something good happens eventually.” Example: ♦P_in_CS.  
     → Every finite prefix can still be extended into a good trace, so there is **no finite counter example**.
+
+# 3. Büchi automata & model checking
+**How this connects**: SPIN checks T ⊨ φ, i.e. "every trace of the Promela model satisfies the LTL formula" To do that it uses **Büchi automata**: automata that read infinite traces. 
+
+Questions you can use this:
+- define B = (Q, δ, Q₀, F) and say when it accepts a word
+- draw an automaton for an ω-expression, or write the ω-expression for a drawn automaton
+- generalised Büchi automata: what they are, how acceptance differs, why they’re used
+- the 5 steps of LTL model checking, why φ is negated, where the counter example comes from
+- draw the product T ⊗ B
+
+### 3.1 Definition
+
+#### B = (Q, δ, Q₀, F) over an alphabet Σ:
+- **Q**: a finite, non-empty set of **locations**
+- **δ ⊆ Q × Σ × Q**: the **transition relation**. (q, a, q′) means “from q, reading a, go to q′”.
+- **Q₀ ⊆ Q**: a non-empty set of **initial** locations
+- **F ⊆ Q**: a set of **accepting** locations
+
+#### **Execution** (w, v):
+- w = a₀ a₁ a₂ … ∈ Σ^ω is the word being read.
+- v = q₀ q₁ q₂ … ∈ Q^ω is the list of locations visited.
+- It must start in an initial location (q₀ ∈ Q₀) and follow δ: (qᵢ, aᵢ, qᵢ₊₁) ∈ δ for all i.
+
+**Acceptance:** B accepts ${}w \iff{}$ **there exists** an execution (w, v)
