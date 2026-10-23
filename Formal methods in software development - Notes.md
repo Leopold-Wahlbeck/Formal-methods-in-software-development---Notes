@@ -524,3 +524,84 @@ At exit `lo == hi`, so every index is in one of the two parts, and therefore the
 invariant 0 <= i <= a.Length / 2
 invariant forall k :: 0 <= k < i ==> a[k] == a[a.Length - 1 - k]
 ```
+
+
+# 6. Separation logic
+
+#### Questions like:
+* Prove a short heap program step by step and find Q
+* Find the error in a wrong "proof"
+* Explain why a ↦ x ∗ a ↦ y is false, and whether p ∗ p can ever be true
+* VeriFast: heap chunks, open / close
+* "Too much separation" (trees with shared parts)
+
+## 6.1 Why separation logic? The frame problem
+
+In Hoare logic you have to keep repeating everything that **didn't** change, and with pointers you also have to say they don't point to the same place (${}a \neq b{}$). Separation logic fixes this with * and the **frame rule**, which gives you **local reasoning:** you only talk about the memory the code actually touches. 
+
+**State = (s,h):** a **store** s (${}variables \to values{}$) plus a **heap** h (${}adresses \to values{}$).
+
+Example heap: [3 ↦ 4, 4 ↦ 29, 29 ↦ 0]
+
+## 6.2 Assertions
+| Assertion         | Meaning                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| **emp**           | the heap is empty                                                                      |
+| **e₁ ↦ e₂**       | the heap has exactly one cell: address e₁ contains e₂                                  |
+| **p ∗ q**         | the heap can be split into two **disjoint** parts, p holds for one and q for the other |
+| **⟨b⟩**           | b is true about the variables, and the heap is empty                                   |
+| **v ↦ E₁, …, Eₙ** | shorthand for v ↦ E₁ ∗ v+1 ↦ E₂ ∗ … (n cells in a row)                                 |
+| **_**             | “some value” we don’t care about, e.g. a ↦ _                                           |
+**Rules to know:** emp ∗ p = p · p ∗ q = q ∗ p · (p ∗ q) ∗ r = p ∗ (q ∗ r) · ⟨true⟩ = emp · ⟨b₁⟩ ∗ ⟨b₂⟩ = ⟨b₁ ∧ b₂⟩
+
+## 6.3 New commands and their rules
+
+```
+[E1] := E2               write E2 into the heap at address E1
+v := [E]                 read the heap at address E into v
+v := cons(E1,…,En)       allocate n new cells
+dispose(E)               free the cell at E
+
+UPDATE    ⊢sep { E ↦ _ } [E] := E′ { E ↦ E′ }
+CONS      ⊢sep { emp } v := cons(E1,…,En) { v ↦ E1,…,En }      (v not free in E1…En)
+DISPOSE   ⊢sep { E ↦ _ } dispose(E) { emp }
+READ      ⊢sep { E ↦ v″ } v := [E] { ⟨v = v″⟩ ∗ E ↦ v″ }        (v not free in E)
+
+FRAME            ⊢sep { P } C { Q }
+            ─────────────────────────────    when NO variable free in R
+            ⊢sep { P ∗ R } C { Q ∗ R }         is modified by C
+```
+
+**How to use the frame rule:** prove each command on just the cell it touches, then "frame on" the rest of the heap as R. **Always check the side condition:** R must not mention a variable that the command assigns to. 
+
+## 6.4 Worked example
+
+`⊢sep { emp } x := cons(1); y := cons(2); [x] := y; z := [y]; dispose(y) { Q }`
+
+Heres what the heap looks like after each command:
+
+![[Pasted image 20261023155323.png]]
+
+
+## 6.5 Some facts
+
+> **Why is a ↦ x ∗ a ↦ y always false?** ∗ requires splitting the heap into two **disjoint** parts, and each of them would have to contain address a. A cell can only be in one part, so no heap satisfies it.
+
+> **Can p ∗ p ever be true?** Yes, but only if p needs no heap cells. For example emp ∗ emp = emp, and ⟨b⟩ ∗ ⟨b⟩ = ⟨b⟩. If p claims any cell, the two copies would need that cell twice.
+
+> **Find the error in the proof:** look at the **frame rule**. They framed R ≡ x ↦ y around `y := cons(x)`, but that command modifies y, which appears in R. That breaks the side condition.
+
+> **VeriFast:** VeriFast pushes a collection of separation logic assertions, called **heap chunks** (joined by ∗), symbolically forward through the code. `//@ open` unfolds a predicate chunk into its parts, and `//@ close` packs the parts back into the predicate.
+
+
+## 6.6 Predicates for data structures
+```
+list(a, [])      = emp ∗ ⟨a = null⟩
+list(a, x · xs)  = ∃b. a ↦ x, b ∗ list(b, xs) ∗ ⟨a ≠ null⟩
+```
+
+Each node is 2 cells (value, next), and the rest of the list is **separate from it**.
+
+"**Too much separation**": a tree predicate demands that the subtrees are disjoint. So the code that shares a subtree, like `b := cons(null, 1, null); a := cons(b, 2, b)`, can never be described as a tree(a, ...). 
+
+
