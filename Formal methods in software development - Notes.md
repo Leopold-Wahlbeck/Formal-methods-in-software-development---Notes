@@ -186,7 +186,7 @@ Two things to notice:
 # 3. Büchi automata & model checking
 **How this connects**: SPIN checks T ⊨ φ, i.e. "every trace of the Promela model satisfies the LTL formula" To do that it uses **Büchi automata**: automata that read infinite traces. 
 
-Questions you can use this:
+**Questions you can use this:**
 - define B = (Q, δ, Q₀, F) and say when it accepts a word
 - draw an automaton for an ω-expression, or write the ω-expression for a drawn automaton
 - generalised Büchi automata: what they are, how acceptance differs, why they’re used
@@ -275,3 +275,134 @@ Things to remember:
 5. The only accepting node is never visited again, so there is no accepting cycle and **T ⊨ ♦□p**.
 
 **Recipe for “draw ${}T ⊗ B{}$”:** start from the initial node(s), and for every T-arrow s → s′ look up which q′ the automaton goes to when it reads L(s′). Only draw the nodes you can actually reach. Mark initial nodes with an arrow and accepting nodes with a double border.
+
+# 4. Hoare Logic
+
+**Questions you can use this:**
+* Prove a triple that has a while loop, using an invariant
+* Partial vs total correctness
+* What ⊢ { true } C { false } means
+* ⊢ vs ⊨ and soundness 
+* The faulty assignment rule vs Floyd's rule
+* Derive a rule for a new construct (repeat ... until)
+
+## 4.1 Hoare triples
+
+**⊢ { P } C { Q }** where:
+* P = precondition, 
+* C = code, 
+* Q = postcondition.
+
+The code uses: `skip`, `v := E`, `C1; C2`, `if G then C1 else C2 fi`, `while G do C od`.
+
+| Notation      | Name                | Meaning                                                                    |
+| ------------- | ------------------- | -------------------------------------------------------------------------- |
+| { P } C { Q } | partial correctness | If P holds at the start **and C terminates**, then Q holds at the end      |
+| [ P ] C [ Q ] | total correctness   | If P holds at the start, then C **does terminate**, and Q holds at the end |
+**Total = partial + termination**. A program that never terminates satisfies *every* partial triple. 
+
+Semantics (⊨), as on the slides:
+- ⊨ { P } C { Q } = ∀s₁ s₂. P(s₁) ∧ (C, s₁) ⇓ s₂ ⇒ Q(s₂)
+- ⊨ [ P ] C [ Q ] = ∀s₁. P(s₁) ⇒ ∃s₂. (C, s₁) ⇓ s₂ ∧ Q(s₂)
+
+(C, s₁) ⇓ s₂ means “C, started in state s₁, finishes in state s₂”.
+
+## 4.2 The rules
+
+
+|Rule|If you have… (above the line)|…then you get (below the line)|
+|---|---|---|
+|Skip|nothing needed|⊢ { P } skip { P }|
+|Assignment|nothing needed|⊢ { Q[x\E] } x := E { Q }|
+|Sequence|⊢ { P } C1 { M } and ⊢ { M } C2 { Q }|⊢ { P } C1; C2 { Q }|
+|If|⊢ { P ∧ G } C1 { Q } and ⊢ { P ∧ ¬G } C2 { Q }|⊢ { P } if G then C1 else C2 fi { Q }|
+|Consequence|P ⇒ P′ and ⊢ { P′ } C { Q′ } and Q′ ⇒ Q|⊢ { P } C { Q }|
+|While (partial)|⊢ { P ∧ G } C { P }|⊢ { P } while G do C od { P ∧ ¬G } (P = the invariant)|
+|While (total)|< is well-founded and ∀v₀. ⊢ [ P ∧ G ∧ E = v₀ ] C [ P ∧ E < v₀ ]|⊢ [ P ] while G do C od [ P ∧ ¬G ] (E = the variant)|
+
+**Derived rules (use these in proofs)**
+
+|Rule|If you have… (above the line)|…then you get (below the line)|
+|---|---|---|
+|While (derived)|P ⇒ I and ⊢ { I ∧ G } C { I } and I ∧ ¬G ⇒ Q|⊢ { P } while G do C od { Q }|
+|Assignment (derived)|P ⇒ Q[v\E]|⊢ { P } v := E { Q }|
+|Sequence + assignment|⊢ { P } C { Q[v\E] }|⊢ { P } C; v := E { Q }|
+|Repeat (Oct 2024)|P ⇒ I and ⊢ { I } C { I } and I ∧ G ⇒ Q|⊢ { P } repeat C until G { Q }|
+
+## Assignment works backwards
+
+**Q[x\E]** means “Q with every x replaced by E”.
+* **Example**: ⊢ { true } x := 5 { x > 0 }. Here (x > 0)[x\5] = 5 > 0 = true ✓
+
+**Several assignments in a row:** substitute starting from the **last** one and work towards the first. 
+
+```
+{ ? }  x := x − 1;  y := y + 1  { x + y = n }
+
+after  y := y + 1:   (x + y = n)[y\y+1]  =  x + (y + 1) = n
+after  x := x − 1:   [x\x−1]             =  (x − 1) + (y + 1) = n
+                                         =  x + y = n
+```
+
+## 4.4 The derived while rule = 3 checks
+
+![[Pasted image 20261023120229.png]]
+
+The invariant I is something that is **true every time you are at the loop head:** before the first iteration, after every iteration, and when the loop exits.
+1. ${}P\implies I{}$: the invariant holds when you first reach the loop.
+2. ⊢ { ${}I{}$ ∧ ${}G{}$ } ${}C{}$ { ${}I{}$ }: if ${}I{}$ holds and the guard is true, then after one run of the body, ${}I{}$ still holds. 
+3. ${}I{}$ ∧ ${}\neg G \implies Q{}$ : when the loop stops (the guard is false), ${}I{}$ together with ${}\neg G{}$ gives you the postcondition.   
+
+## 4.5 How to find the invariant
+1. Make a **small table of values** for a few iterations and look for something that **never changes**. Often its "one variable goes down while another goes up", which gives a sum that always stays constant. 
+2. Look at the goal: ${}I ∧ \neg G{}$ **must give Q**. Pick I so that the exit condition "pins down" the answer.
+3. Add the **bounds** you need at the exit (like ${}x\geq 0{}$), so that ${}\neg G{}$ gives you an exact value. 
+
+##### Worked example
+```
+⊢ { x = n ∧ x ≥ 0 } 
+y := 0; 
+while x > 0 
+	do 
+		x := x − 1; 
+		y := y + 1 
+	od 
+{ y = n }
+```
+
+**Table (n=3):** 
+${}(x,y) = (3,0) \to (2,1) \to (1,2) \to (0,3){}$. 
+
+**Invariant**: ${}I ≡ x + y = n ∧ x ≥ 0{}$
+
+**Proof:**
+* **y := 0** (derived assign rule): we need ${}x = n ∧ x ≥ 0 \implies I{}$[y\0], i.e. x + 0 = n ∧ x ≥ 0 ✓. So ⊢ { x = n ∧ x ≥ 0 } y := 0 { I }.
+* **While loop**: (derived while rule), with precondition ${}I{}$:
+	1. ${}I \implies I \space (✓){}$
+	2.  ⊢ { ${}I ∧ x > 0{}$ } ${}x := x − 1; y := y + 1{}$ { ${}I{}$ }. Substituting backwards, it’s enough to show ${}I ∧ x > 0 \implies (x − 1) + (y + 1) = n ∧ x − 1 ≥ 0{}$. This holds: the sum is still x + y = n, and x > 0 gives x − 1 ≥ 0 ✓
+	3. ${}I ∧ ¬(x > 0) \implies y = n:{}$ we have ${}x \geq 0{}$ and ${}x \leq 0{}$, so ${}x=0{}$, and then ${}0 + y = n \space ✓{}$ 
+* Combine the two parts with the SEQ rule. 
+**Why x ≥ 0 has to be in ${}I{}$:** without it, (3.) fails. ¬(x > 0) only gives x ≤ 0, not x = 0.
+
+## 4.7 Faulty assignment rule
+The “forwards” rule ⊢ { P } x := E { P ∧ x = E } is **unsound**.
+
+**Counter example:** take P ≡ x = 0 and E ≡ x + 1. The rule gives  
+{ x = 0 } x := x + 1 { x = 0 ∧ x = x + 1 }.  
+The postcondition is **false** (x = x + 1 is impossible), but the program obviously terminates with x = 1. That’s nonsense.
+
+**Floyd’s rule** (sound): ⊢ { P } x := E { ∃v. (x = E[x\v]) ∧ P[x\v] }, where v = the **old** value of x.  
+Same example: { x = 0 } x := x + 1 { ∃v. x = v + 1 ∧ v = 0 }, which simplifies to x = 1 ✓ (correct).
+
+## 4.8 Total correctness needs a variant
+
+	< is well-founded    ∀v₀. ⊢ [ P ∧ G ∧ E = v₀ ] C [ P ∧ E < v₀ ]
+	──────────────────────────────────────────────────────────────
+		          ⊢ [ P ] while G do C od [ P ∧ ¬G ]
+  
+- **Variant E** = a value that **strictly decreases** on every iteration and can’t decrease forever. Example: n, using < on the natural numbers.
+- **Well-founded** = there is no infinite descending chain.
+- **Example:** `while n ≠ 1 do n := n − 2 od`
+    - Partial { true } C { n = 1 } holds with ${}I{}$ = true, because the loop can only exit when n = 1.
+    - Total does **not** hold: n = 0 gives 0, −2, −4, … forever.
+    - It _is_ total with P ≡ odd(n) ∧ n ≥ 1, using P as the invariant and n as the variant.
