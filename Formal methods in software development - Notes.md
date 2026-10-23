@@ -406,3 +406,121 @@ Same example: { x = 0 } x := x + 1 { ∃v. x = v + 1 ∧ v = 0 }, which simplifi
     - Partial { true } C { n = 1 } holds with ${}I{}$ = true, because the loop can only exit when n = 1.
     - Total does **not** hold: n = 0 gives 0, −2, −4, … forever.
     - It _is_ total with P ≡ odd(n) ∧ n ≥ 1, using P as the invariant and n as the variant.
+# 5. Dafny & invariants
+
+**Ex:** you get a Dafny method that works on an array, and you have to:
+* a) write the spec: the ***requires***, ***ensures*** or a ***predicate***
+* b) write the loop body with its ***invariant***
+
+
+## 5.1 Weakest preconditions (wp): how tools like Dafny use Hoare logic
+
+**wp(C,Q)** = the weakest precondition that makes *⊢ { wp(C, Q) } C { Q }* true. Any other valid precondition P implies it. 
+${}\implies{}$ To prove ⊢ { P } C { Q }, it is enough to prove P ⇒ wp(C, Q).
+```
+wp(skip, Q)                      = Q
+wp(v := E, Q)                    = Q[v\E]
+wp(C1; C2, Q)                    = wp(C1, wp(C2, Q))
+wp(if G then C1 else C2 fi, Q)   = (G ⇒ wp(C1, Q)) ∧ (¬G ⇒ wp(C2, Q))
+```
+
+**There is no equation for while**. You have to supply an invariant, and finding invariant can't be automated in general. That's why Dafny makes you write `invariant`.
+
+**The VCs for** `init; while G do body od` **with invariant Inv**:
+1. ${}P \implies wp(init, Inv){}$
+2. ${}Inv ∧ G \implies wp(body, Inv){}$
+3. ${}Inv ∧ \neg{G} \implies Q{}$
+These are the same three checks as the while rule: enter, keep, exit.
+
+**Revision lecture example:** ⊢ { n ≥ 0 } z := 0; while z < n do z := z + 1 od { z = n }
+1. n ≥ 0 ⇒ Inv[z\0]
+2. Inv ∧ z < n ⇒ Inv[z\z+1]
+3. Inv ∧ ¬(z < n) ⇒ z = n
+Take **Inv ≡ z ≤ n**: (1) 0 ≤ n ✓ (2) z < n ⇒ z + 1 ≤ n ✓ (3) z ≤ n ∧ z ≥ n ⇒ z = n ✓
+**Careful with the order for several assignments:** for `k := 0; a := 0; b := 1`, wp gives ${}Inv[b\1][a\0][k\0]{}$. The **last** assignment is substituted first.
+
+## 5.2 Dafny cheat sheet
+
+```
+method name(a: array<int>, x: int) returns (r: int)
+  requires P                     // precondition
+  ensures  Q                     // postcondition
+  modifies a                     // only if the method WRITES to a
+{
+  var i := 0;
+  while i < a.Length
+    invariant 0 <= i <= a.Length
+    invariant forall k :: 0 <= k < i ==> ...
+    decreases a.Length - i       // the variant (Dafny usually guesses it)
+  {
+    ...
+    i := i + 1;
+  }
+}
+
+predicate sorted(a: array<int>)
+  reads a                        // needed when a predicate reads an array
+{
+  forall i, j :: 0 <= i <= j < a.Length ==> a[i] <= a[j]
+}
+```
+
+* `==` means equal, `:=` assigns, `==>` means implies, and `&&`, `||`, `!` work as usual.
+* **`forall k :: range ==> property`** but **`exists k :: range && property`**. Mixing these up is a classic mistake.
+* Indices go from 0 to a.Length -1. `new int[n]` creates an array. `return x;` exits the method. 
+* `for i := 0 to a.Length {...}` loops i = 0, 1, ..., a.Length - 1. 
+
+## 5.3 Some spec patterns
+
+|English|Dafny|
+|---|---|
+|j is the index of the largest element|`0 <= j < a.Length && forall i :: 0 <= i < a.Length ==> a[i] <= a[j]`|
+|a is sorted|`forall i, j :: 0 <= i <= j < a.Length ==> a[i] <= a[j]`|
+|b is a reversed|`forall k :: 0 <= k < b.Length ==> b[k] == a[a.Length - k - 1]`|
+|a is a palindrome|`forall i :: 0 <= i < a.Length ==> a[i] == a[a.Length - 1 - i]`|
+|key is found at r|`0 <= r < a.Length && a[r] == key`|
+|key is not in a|`forall i :: 0 <= i < a.Length ==> a[i] != key`|
+
+## 5.4 The invariant recipe for array loops
+
+**The invariant = the poistcondition, but only for the part already processed.** Replace `a.Length` by `i`. Then add the bounds `0 <= i <= a.Length`.
+
+![[Pasted image 20261023151245.png]]
+
+## 5.5 Worked example: find_max
+```
+method find_max(a: array<int>) returns (j: int)
+  requires a.Length > 0
+  ensures 0 <= j < a.Length
+  ensures forall k :: 0 <= k < a.Length ==> a[k] <= a[j]
+{
+  j := 0;
+  var i := 1;
+  while i < a.Length
+    invariant 0 <= j < a.Length
+    invariant 1 <= i <= a.Length
+    invariant forall k :: 0 <= k < i ==> a[k] <= a[j]   // postcondition with a.Length → i
+  {
+    if a[j] < a[i] { j := i; }
+    i := i + 1;
+  }
+}
+```
+
+
+## 5.6 Two more patterns
+
+```
+invariant 0 <= lo <= hi <= a.Length
+invariant forall i :: 0 <= i < lo ==> a[i] < key           // left part: too small
+invariant forall i :: hi <= i < a.Length ==> key < a[i]    // right part: too large
+```
+
+At exit `lo == hi`, so every index is in one of the two parts, and therefore the key is nowhere in the array. 
+
+**Returning early (palindrome)**: check pairs with a loop and `return false` as soon as one fails. The invariant says "all pairs checked so far match": 
+
+```
+invariant 0 <= i <= a.Length / 2
+invariant forall k :: 0 <= k < i ==> a[k] == a[a.Length - 1 - k]
+```
