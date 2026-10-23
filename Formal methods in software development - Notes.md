@@ -206,4 +206,55 @@ Questions you can use this:
 - v = q₀ q₁ q₂ … ∈ Q^ω is the list of locations visited.
 - It must start in an initial location (q₀ ∈ Q₀) and follow δ: (qᵢ, aᵢ, qᵢ₊₁) ∈ δ for all i.
 
-**Acceptance:** B accepts ${}w \iff{}$ **there exists** an execution (w, v)
+**Acceptance:** B accepts ${}w \iff{}$ **there exists** an execution (w, v) where some accepting location ${}f \in F{}$ appears **infinitely often** in v.
+
+**Language:** Lω(B) = { w ∈ Σ^ω | B accepts w }
+
+Things to remember: 
+* It only reads **infinite** words (ω-words). Can it accept a finite word? **No.**
+* "There exists" means it's non-deterministic: one good path is enough.
+* If there is no transition for the next letter, that execution dies. 
+* Non-deterministic Büchi automata are strictly more expressive than deterministic ones.
+
+### 3.2 ω-expressions
+
+| Expression | Meaning                              |
+| ---------- | ------------------------------------ |
+| ab         | a followed by b                      |
+| a + b      | a or b                               |
+| a*         | a finitely many times (0 is allowed) |
+| a^ω        | a infinitely many times (forever)    |
+
+**Drawing rule**: the part under ^ω becomes a **loop through an accepting location** (drawn as a double circle). The part in front of it is the path that leads there. 
+
+![[Pasted image 20261022215456.png]]
+
+
+### 3.3 Method: automaton ↔ ω-expression
+
+**Automaton → expression:**
+
+1. For each accepting location f, find (the way **to reach** f) and (the **loops back** to f).
+2. That accepting location gives: reach · (loop)^ω
+3. Join the parts with +.
+
+**Expression ${}\to{}$ automaton**: build the prefix as a chain of location, then put the ω part as a loop on an accepting location. For a "+", make two branches from the start.
+
+### 3.4 Generalised Büchi automata (GB)
+* GB = (Q, δ, Q₀, F), the same as before except **${}F = {F_{1},\dots,F_{k}}{}$** **is a set of sets** of accepting locations
+* **It accepts** w iff **for every** i, at least one location in ${}F_{i}{}$ is visited infinitely often.
+* **The difference:** a normal B needs *some* accepting location infinitely often. 
+* **The difference:** a normal B needs *some* accepting location infinitely often. A GB needs every acceptance set ${}F_{_{i}}{}$ hit infinitely often. 
+* **Why use them:** it's much easier to translate LTL into a GB (one ${}F_{i}{}$ per U-subformula). The GB is then turned into a normal B by making one copy of the automaton per ${}F_{i}{}$.
+
+### 3.5 LTL model checking: the 5 steps (is T ⊨ φ?)
+1. Build a generalized Büchi automaton GB¬φ for the **negation** ¬φ.
+2. Turn it into an equivalent **normal** Büchi automaton B¬φ (same language). 
+3. Build the **product** ${}T ⊗ B\negφ{}$. This contains exactly the runs of T that ${}B\negφ{}$ accepts, i.e. the runs that **violate** φ. 
+4. **Search** the product for a path from an initial node to a **cycle through an accepting node**.
+5. Found ${}\to T {}$ ⊭ φ and that path is a **counter example**. Not found → **T ⊨ φ**.
+
+### 3.6 The product ${}T ⊗ B {}$ (definitions from the slides)
+* **Nodes**: pairs ⟨s, q⟩ (a state of T together with a location of B)
+* **Arrows: ⟨s, q⟩ → ⟨s′, q′⟩ iff s → s′ in T **and** (q, L(s′), q′) ∈ δ  → **The automaton reads the label of the _target_ state.****
+* **Initial nodes:** ⟨s₀, q⟩ where s₀ is initial in T and (q₀, L(s₀), q) ∈ δ for some q₀ ∈ Q₀. The automaton first reads s₀’s own label.
