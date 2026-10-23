@@ -258,3 +258,20 @@ Things to remember:
 * **Nodes**: pairs ⟨s, q⟩ (a state of T together with a location of B)
 * **Arrows: ⟨s, q⟩ → ⟨s′, q′⟩ iff s → s′ in T **and** (q, L(s′), q′) ∈ δ  → **The automaton reads the label of the _target_ state.****
 * **Initial nodes:** ⟨s₀, q⟩ where s₀ is initial in T and (q₀, L(s₀), q) ∈ δ for some q₀ ∈ Q₀. The automaton first reads s₀’s own label.
+* **Accepting nodes:** ⟨s, q⟩ with q ∈ F
+
+
+##### **Worked example: 
+
+![[Pasted image 20261023105418.png]]
+
+###### **B¬φ accepts “infinitely often {}”, i.e. ¬♦□p ≡ □♦¬p:**
+![[Pasted image 20261023104807.png]]
+###### How the product was built, step by step:
+1. **Initial node**: ${}s_{0}{}$ has label {}, and from q0 reading {} goes to q1, so the initial node is ⟨s0, q1⟩. Its accepting because ${}q1 \in F{}$.
+2. ⟨s0, q1⟩: T goes ${}s0 \to s1{}$, and the automaton reads ${}L(s1) = {p}{}$, so ${}q1 \to q_{0}{}$. That gives **⟨s1, q0⟩**.
+3. ⟨s1, q0⟩: s1 → s2, reading {p} keeps q0, so we get **⟨s2, q0⟩**.
+4. ⟨s2, q0⟩: s2 → s1, reading {p} keeps q0, so we’re back at ⟨s1, q0⟩. That’s a cycle, but it is **not accepting**.
+5. The only accepting node is never visited again, so there is no accepting cycle and **T ⊨ ♦□p**.
+
+**Recipe for “draw ${}T ⊗ B{}$”:** start from the initial node(s), and for every T-arrow s → s′ look up which q′ the automaton goes to when it reads L(s′). Only draw the nodes you can actually reach. Mark initial nodes with an arrow and accepting nodes with a double border.
